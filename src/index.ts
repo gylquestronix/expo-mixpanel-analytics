@@ -1,6 +1,7 @@
-import { Platform, Dimensions, AsyncStorage } from "react-native";
-import Constants from "expo-constants";
 import { Buffer } from "buffer";
+import Constants from "expo-constants";
+import * as Device from "expo-device";
+import { AsyncStorage, Dimensions, Platform } from "react-native";
 
 const { width, height } = Dimensions.get("window");
 
@@ -24,27 +25,30 @@ export class ExpoMixpanelAnalytics {
   osVersion: string | number;
   queue: any[];
   superProps: any = {};
+  os?: string;
 
-  constructor(token) {
+  constructor({ token, deviceId }) {
     this.ready = false;
     this.queue = [];
 
     this.token = token;
     this.userId = null;
-    this.clientId = Constants.deviceId;
+    this.clientId = deviceId;
     this.osVersion = Platform.Version;
     this.superProps;
 
-    Constants.getWebViewUserAgentAsync().then(userAgent => {
+    Constants.getWebViewUserAgentAsync().then((userAgent) => {
       this.userAgent = userAgent;
-      this.appName = Constants.manifest.name;
-      this.appId = Constants.manifest.slug;
-      this.appVersion = Constants.manifest.version;
+      this.appName = Constants?.manifest?.name || "appName";
+      this.appId = Constants?.manifest?.slug || "appId";
+      this.appVersion = Constants?.manifest?.version || "appVersion";
       this.screenSize = `${width}x${height}`;
       this.deviceName = Constants.deviceName;
+      this.model = Device.modelName || "";
+
+      this.os = `${Device.osName} ${Device.osVersion}`;
       if (isIosPlatform && Constants.platform && Constants.platform.ios) {
-        this.platform = Constants.platform.ios.platform;
-        this.model = Constants.platform.ios.model;
+        this.platform = "ios";
       } else {
         this.platform = "android";
       }
@@ -73,7 +77,7 @@ export class ExpoMixpanelAnalytics {
   track(name: string, props?: any) {
     this.queue.push({
       name,
-      props
+      props,
     });
     this._flush();
   }
@@ -132,7 +136,7 @@ export class ExpoMixpanelAnalytics {
     if (this.userId) {
       const data = {
         $token: this.token,
-        $distinct_id: this.userId
+        $distinct_id: this.userId,
       };
       data[`$${operation}`] = props;
 
@@ -145,8 +149,8 @@ export class ExpoMixpanelAnalytics {
       event: event.name,
       properties: {
         ...(event.props || {}),
-        ...this.superProps
-      }
+        ...this.superProps,
+      },
     };
     if (this.userId) {
       data.properties.distinct_id = this.userId;
@@ -159,6 +163,7 @@ export class ExpoMixpanelAnalytics {
     data.properties.screen_size = this.screenSize;
     data.properties.client_id = this.clientId;
     data.properties.device_name = this.deviceName;
+    data.properties.os = this.os;
     if (this.platform) {
       data.properties.platform = this.platform;
     }
